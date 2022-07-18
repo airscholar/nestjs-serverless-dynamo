@@ -1,0 +1,79 @@
+service: nestjs-serverless-dynamo
+plugins: 
+  - serverless-plugin-optimize
+  - serverless-offline
+  - serverless-dynamodb-local
+
+functions:
+  app: 
+    handler: dist/serverless.handler
+    events:
+      - http:
+          method: ANY
+          path: /
+      - http:
+          method: ANY
+          path: '{proxy+}'
+
+provider: 
+    name: aws
+    runtime: nodejs14.x
+    apiGateway:
+      shouldStartNameWithService: true
+
+    environment: 
+      AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+      NODE_OPTIONS: --enable-source-maps --stack-trace-limit=1000
+      DYNAMODB_ENDPOINT: ${self:custom.endpoints.dynamodbURL}
+    iam: 
+      role: 
+        statements: 
+            - Effect: 'Allow'
+              Action: 
+                - 'dynamodb:DescribeTable'
+                - 'dynamodb:Query'
+                - 'dynamodb:Scan'
+                - 'dynamodb:GetItem'
+                - 'dynamodb:PutItem'
+                - 'dynamodb:UpdateItem'
+                - 'dynamodb:DeleteItem'
+
+              Resource: arn:aws:dynamodb:us-west-2:*:table/TodosTable
+
+custom: 
+    esbuild: 
+      bundle: true
+      minify: false
+      sourcemap: true
+      exclude: aws-sdk
+      target: node14
+      define: 'require.resolve: undefined'
+      platform: node
+      concurrency: 10
+
+    dynamodb: 
+      start: 
+        port: 6000
+        inMemory: true
+        migrate: true
+      stages: dev
+    endpoints:
+      dynamodbURL: 'http://localhost:6000'
+
+resources: 
+    Resources: 
+      TodosTable: 
+        Type: AWS::DynamoDB::Table
+        Properties:
+          TableName: TodosTable
+          AttributeDefinitions: 
+              - AttributeName: id
+                AttributeType: S
+
+          KeySchema: 
+              - AttributeName: id
+                KeyType: HASH
+
+          ProvisionedThroughput: 
+            ReadCapacityUnits: 1
+            WriteCapacityUnits: 1  
